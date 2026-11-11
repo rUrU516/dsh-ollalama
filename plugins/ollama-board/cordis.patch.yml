@@ -1,0 +1,11 @@
+# Host row: owns the API key, talks to ollama.com, serves one cached snapshot
+# on /ollama-board/*. The `dsh.client` manifest section loads client.js as the
+# browser half, which renders the sidebar entry and the dashboard page.
+- insert:
+    - id: ollama-board
+      name: '@local/dsh-ollama-board'
+      config:
+        # Put your own key here, or override this row in the profile patch:
+        # a matching entry there replaces this config wholesale.
+        apiKey: ''
+        baseUrl: 'https://ollama.com'
