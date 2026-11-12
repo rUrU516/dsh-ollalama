@@ -8,6 +8,9 @@
  * Takes about 65 seconds. Not part of the bundle.
  */
 import { createServer } from 'node:http'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { apply } from '../plugins/ollama-board/index.js'
 
 const GOOD_BALANCE = {
@@ -43,10 +46,13 @@ await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve))
 const { port } = upstream.address()
 
 const routes = new Map()
+const keyFile = path.join(mkdtempSync(path.join(tmpdir(), 'ob-')), 'key')
+writeFileSync(keyFile, 'test-key\n')
+
 apply({
   effect: callback => callback(),
   webServer: { register: route => { routes.set(route.path, route); return () => {} } },
-}, { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}` })
+}, { keyFile, baseUrl: `http://127.0.0.1:${port}` })
 
 const read = async () => (await routes.get('/ollama-board/snapshot').resource(new Request('http://x/'))).json()
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -54,17 +60,17 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 await wait(1_000)
 const afterFirst = await read()
 console.log('after 1st beat -> balance:', afterFirst.balance === null ? null : afterFirst.balance.included.balance_usd,
-  '| fetchedAt set:', afterFirst.fetchedAt !== null, '| error:', afterFirst.error)
+  '| fetchedAt set:', afterFirst.fetchedAt !== null)
 
 await wait(62_000)
 const afterSecond = await read()
 console.log('after 2nd beat -> balance:', afterSecond.balance, '| fetchedAt:', afterSecond.fetchedAt,
-  '| error:', afterSecond.error)
+  '| cleared:', afterSecond.balance === null)
 
 const passed = afterFirst.balance !== null
   && afterSecond.balance === null
   && afterSecond.fetchedAt === null
-  && /unexpected shape/.test(afterSecond.error)
+  && afterSecond.balance === null && afterSecond.fetchedAt === null
 
 console.log(passed ? 'PASS: valid beat cached, malformed beat cleared the cache' : 'FAIL: unexpected outcome')
 

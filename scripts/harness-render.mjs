@@ -133,22 +133,22 @@ const snapshot = {
 
 // ── run ──────────────────────────────────────────────────────────────────────
 
+const NO_DATA = { balance: null, usage: {}, fetchedAt: null, stale: true }
+
 const cases = [
-  ['24h', [{ value: '24h' }, { value: snapshot }]],
-  ['7d', [{ value: '7d' }, { value: snapshot }]],
-  ['30d', [{ value: '30d' }, { value: snapshot }]],
-  ['no data', [{ value: '24h' }, { value: { balance: null, usage: {}, fetchedAt: null, error: 'x', configured: true, stale: true } }]],
-  ['loading', []],
+  ['24h', [{ value: '24h' }, { value: snapshot }], ['缓存命中', '$']],
+  ['7d', [{ value: '7d' }, { value: snapshot }], ['缓存命中']],
+  ['30d', [{ value: '30d' }, { value: snapshot }], ['缓存命中']],
+  ['first run', [], ['暂时拉不到数据']],
+  ['no data', [{ value: '24h' }, { value: NO_DATA }], ['暂时拉不到数据']],
 ]
 
 let failed = false
-for (const [name, overrides] of cases) {
+for (const [name, overrides, expected] of cases) {
   try {
     pendingOverrides = overrides
     const html = render(createElement(Page))
-    const ok = name === 'no data'
-      ? html.includes('拿不到') || html.includes('暂时')
-      : name === 'loading' ? html.includes('读取中') : html.includes('缓存命中') && html.includes('$')
+    const ok = expected.every(word => html.includes(word))
     console.log(`${name.padEnd(9)} -> ${html.length} chars ${ok ? 'OK' : 'MISSING TEXT'}`)
     if (process.env.DUMP && name === '24h') console.log('  full:', html)
     if (!ok) { failed = true; console.log('  output:', html.slice(0, 300)) }

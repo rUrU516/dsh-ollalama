@@ -3,6 +3,9 @@
  * path can be verified before a restart. Not part of the bundle.
  */
 import { readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { apply } from '../plugins/ollama-board/index.js'
 
 const env = Object.fromEntries(
@@ -20,7 +23,9 @@ const ctx = {
   },
 }
 
-apply(ctx, { apiKey: env.OLLAMA_API_KEY, ttlMs: 60_000, minRefreshMs: 15_000 })
+const keyFile = path.join(mkdtempSync(path.join(tmpdir(), 'ob-')), 'key')
+writeFileSync(keyFile, `${env.OLLAMA_API_KEY}\n`)
+apply(ctx, { keyFile })
 console.log('routes:', [...routes.keys()])
 
 // The Host half now starts a beat on activation; the first read should wait

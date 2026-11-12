@@ -32,8 +32,6 @@ ollama.com ──每 60s──▶ Host 内存快照 ──GET /ollama-board/snap
     },
   },
   fetchedAt: number | null,
-  error: string | null,
-  configured: boolean,
   stale: boolean,
 }
 ```
@@ -53,9 +51,10 @@ ollama.com ──每 60s──▶ Host 内存快照 ──GET /ollama-board/snap
 | `buckets[]` | 时间桶；`24h` 25 个小时桶，`7d` 8 个、`30d` 31 个天桶 |
 | `buckets[].partial` | 存在且为 true 表示这一小时/天还没走完 |
 | `fetchedAt` | **最后一次成功拉取**的时刻（毫秒）。失败不更新 |
-| `error` | 最近一次失败的描述；成功后清空 |
-| `configured` | 是否配了 API key |
 | `stale` | `fetchedAt` 超过两拍（120 秒），说明漏了一拍 |
+
+快照里**只有数据，没有错误**。某一拍失败就是失败：上一份数字留着，浏览器显示它们的真实年龄。
+错误码只出现在 `POST /key` 的回答里 —— 那是对用户刚做动作的直接回应。
 
 两个容易搞错的地方：
 
@@ -85,17 +84,36 @@ const ready = snapshot.balance !== null
 - Client：进入看板页读一次（t=0），之后每 10 秒无条件读一次本地缓存；离开页面停。
   没有 `visibilitychange`、没有和 Host 对表。
 
-## 配置
+## 配置 API key
 
-```yaml
-- id: ollama-board
-  name: '@local/dsh-ollama-board'
-  config:
-    apiKey: '...'
-    baseUrl: 'https://ollama.com'
-```
+面板右上角一个钥匙按钮（缓慢的青色呼吸光，方便定位）。点开 → 输入框**向左**展开，
+`✓` 校验并保存，`×` 收起。
 
-`apiKey` 明文落在 profile 的 `cordis.patch.yml` 里 —— 没走 `ctx.credentials` 是因为没有配套的录入界面，属于已知取舍。
+- 校验：Host 拿候选 key 打一次 `/api/balance`，通过才写入
+- 存储：`~/.dsh/ollama-board.key`，权限 600；Host 每一拍读取，**换 key 不用重启**
+- 手工写入也一样：`echo 'sk-...' > ~/.dsh/ollama-board.key`
+- 删除 key：`rm ~/.dsh/ollama-board.key`
+
+### 错误码
+
+Host 只返回 code，文案由前端 `STRINGS.<locale>.errors` 映射。
+
+| code | 含义 |
+| --- | --- |
+| `no-key` | 文件不存在或为空 |
+| `empty` | 输入为空 |
+| `unauthorized` | 401，key 被拒绝 |
+| `forbidden` | 403，账号被限制 |
+| `rate-limited` | 429，附 `retryAfter` 秒 |
+| `server-error` | 其它非 2xx |
+| `timeout` | 20 秒内没有应答 |
+| `bad-shape` | 返回格式与预期不符 |
+
+## 出错时提示在哪
+
+- **保存失败** → 钥匙下方一行红字，输入框保留
+- **后台拉取失败** → 不显示（快照里没有错误）；从页脚的「更新于 Xm 前 / Stale」看出来
+- **一条数据都没有** → 内容区只有一行「暂时拉不到数据」，其余照旧
 
 ## 已知限制
 

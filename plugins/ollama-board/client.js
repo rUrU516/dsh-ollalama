@@ -34,14 +34,24 @@ window.__ModuleLoader__.load({
         byModel: '按模型',
         model: '模型',
         noData: '这段时间没有记录到请求。',
-        loading: '读取中…',
-        unavailable: '暂时拿不到数据。',
+        empty: '暂时拉不到数据。',
         updated: '更新于',
         ago: '前',
         stale: '数据陈旧',
         delay: 'ollama.com 记账有分钟级延迟',
-        error: '读取失败',
-        notConfigured: '没有配置 API key，请在插件设置里填写。',
+        keyTitle: '设置 API key',
+        keySave: '校验并保存',
+        keyCancel: '收起',
+        errors: {
+          'no-key': '还没有配置 API key',
+          empty: '请输入 key',
+          unauthorized: 'key 被拒绝',
+          forbidden: '账号被限制或无权访问',
+          'rate-limited': '请求太频繁',
+          'server-error': 'ollama.com 返回了错误',
+          timeout: '连接 ollama.com 超时',
+          'bad-shape': 'ollama.com 的返回格式变了',
+        },
       },
       en: {
         nav: 'ollalama',
@@ -61,14 +71,24 @@ window.__ModuleLoader__.load({
         byModel: 'By model',
         model: 'Model',
         noData: 'No requests recorded in this range.',
-        loading: 'Loading…',
-        unavailable: 'No data available.',
+        empty: 'Nothing to show right now.',
         updated: 'Updated',
         ago: 'ago',
         stale: 'Stale',
         delay: 'ollama.com accounting lags by a minute or two',
-        error: 'Read failed',
-        notConfigured: 'No API key configured for this plugin.',
+        keyTitle: 'Set API key',
+        keySave: 'Check and save',
+        keyCancel: 'Collapse',
+        errors: {
+          'no-key': 'No API key configured',
+          empty: 'Enter a key first',
+          unauthorized: 'Key rejected',
+          forbidden: 'Account restricted or not allowed',
+          'rate-limited': 'Too many requests',
+          'server-error': 'ollama.com returned an error',
+          timeout: 'Timed out reaching ollama.com',
+          'bad-shape': 'ollama.com answered in an unexpected shape',
+        },
       },
     }
 
@@ -76,12 +96,15 @@ window.__ModuleLoader__.load({
       try {
         const locale = ctxRef && ctxRef.get('locale')
         const snapshot = locale && typeof locale.getLocale === 'function' ? locale.getLocale() : null
-        const id = String((snapshot && (snapshot.id || snapshot.locale)) || '')
+        // LocaleSnapshot publishes `active`; a wrong field name falls back silently.
+        const id = String((snapshot && snapshot.active) || '')
         if (id) return id.toLowerCase().startsWith('zh') ? 'zh' : 'en'
       } catch (error) { /* fall through to the browser language */ }
       const nav = typeof navigator !== 'undefined' ? String(navigator.language || '') : ''
       return nav.toLowerCase().startsWith('zh') ? 'zh' : 'en'
     }
+
+    const stringsFor = () => STRINGS[pickLocale()] || STRINGS.en
 
     // ── formatting ──────────────────────────────────────────────────────────
 
@@ -320,29 +343,96 @@ window.__ModuleLoader__.load({
         // seconds before every scheduled read.
         bits.push(`${t.updated} ${ago(Math.max(0, now - data.fetchedAt), t)}`)
         if (data.stale) bits.push(t.stale)
-      } else if (data) {
-        bits.push(t.stale)
-      } else {
-        bits.push(t.loading)
       }
       return h('span', null, bits.join(' · '))
+    }
+
+    function KeyIcon() {
+      return h('svg', {
+        width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
+        'aria-hidden': true, style: { display: 'block' },
+      },
+        h('circle', { cx: 8.5, cy: 8.5, r: 4 }),
+        h('path', { d: 'M11.4 11.4 L20 20' }),
+        h('path', { d: 'M16.2 16.2 L18.6 13.8' }),
+      )
+    }
+
+    // A small control, not a mode: the panel keeps polling and rendering behind
+    // it whatever happens here.
+    function KeyBar(props) {
+      const { open, saving, failure, t, onToggle, onSubmit, onClose } = props
+      const [value, setValue] = React.useState('')
+      const field = React.useRef(null)
+
+      React.useEffect(() => {
+        if (open && field.current) field.current.focus()
+      }, [open])
+
+      const submit = () => {
+        const candidate = value.trim()
+        if (saving || candidate === '') return
+        onSubmit(candidate)
+      }
+
+      const base = failure ? (t.errors[failure.code] || t.errors['server-error']) : ''
+      const message = failure && failure.retryAfter ? `${base} (${failure.retryAfter}s)` : base
+
+      return h('div', { className: 'ob-keybar' },
+        h('div', { className: `ob-keyform${open ? ' ob-keyform-open' : ''}` },
+          h('input', {
+            ref: field,
+            className: 'ob-input',
+            type: 'password',
+            value,
+            placeholder: 'ollama.com API key',
+            spellCheck: false,
+            autoComplete: 'off',
+            disabled: saving,
+            onChange: event => setValue(event.target.value),
+            onKeyDown: event => { if (event.key === 'Enter') submit() },
+          }),
+          h('button', {
+            type: 'button',
+            className: 'ob-key-ok',
+            onClick: submit,
+            disabled: saving || value.trim() === '',
+            title: t.keySave,
+            'aria-label': t.keySave,
+          }, saving ? '…' : '✓'),
+          h('button', {
+            type: 'button',
+            className: 'ob-key-x',
+            onClick: onClose,
+            title: t.keyCancel,
+            'aria-label': t.keyCancel,
+          }, '×'),
+        ),
+        h('button', {
+          type: 'button',
+          className: 'ob-key',
+          onClick: onToggle,
+          title: t.keyTitle,
+          'aria-label': t.keyTitle,
+        }, h(KeyIcon)),
+        message ? h('div', { className: 'ob-keymsg' }, message) : null,
+      )
     }
 
     function Page() {
       const [range, setRange] = React.useState('24h')
       const [data, setData] = React.useState(null)
-      const [error, setError] = React.useState(null)
-      const locale = pickLocale()
-      const t = STRINGS[locale] || STRINGS.en
+      const [open, setOpen] = React.useState(false)
+      const [saving, setSaving] = React.useState(false)
+      const [failure, setFailure] = React.useState(null)
+      const t = stringsFor()
 
       React.useEffect(() => {
         async function load() {
           try {
             setData(await readSnapshot())
-            setError(null)
-          } catch (failure) {
-            setError(String((failure && failure.message) || failure))
-          }
+          } catch (error) { /* keep showing the last copy we had */ }
         }
         // Same shape as the Host beat: one action, one timer, no conditions.
         // The mount call is just the beat that fires at t=0 instead of t=10s.
@@ -350,6 +440,36 @@ window.__ModuleLoader__.load({
         const timer = setInterval(load, POLL_MS)
         return () => clearInterval(timer)
       }, [])
+
+      async function submitKey(value) {
+        setSaving(true)
+        setFailure(null)
+        try {
+          const response = await fetch('/ollama-board/key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ apiKey: value }),
+          })
+          const text = await response.text()
+          let body = null
+          try { body = text ? JSON.parse(text) : null } catch (error) { body = null }
+          if (!body) {
+            setFailure({ code: 'server-error', retryAfter: null })
+            return
+          }
+          if (!body.ok) {
+            setFailure({ code: body.code, retryAfter: body.retryAfter || null })
+            return
+          }
+          setOpen(false)
+          setFailure(null)
+          setData(await readSnapshot())
+        } catch (error) {
+          setFailure({ code: 'server-error', retryAfter: null })
+        } finally {
+          setSaving(false)
+        }
+      }
 
       // The Host caches only responses that match the expected shape, so a
       // snapshot either carries everything below or no balance at all.
@@ -360,63 +480,126 @@ window.__ModuleLoader__.load({
       const hasGroups = groups.length > 0
         || Boolean(totals && totals.remainder && totals.remainder.request_count > 0)
 
-      return h('div', { className: 'ob-page' },
-        h('div', { className: 'ob-wrap' },
-          h('div', { className: 'ob-head' },
-            h('div', null,
-              h('div', { className: 'ob-title' }, t.title),
-              h('div', { className: 'ob-sub' }, t.subtitle),
+      return h('div', { className: 'ob-stage' },
+        h('div', { className: 'ob-scroll' },
+          h('div', { className: 'ob-wrap' },
+            h('div', { className: 'ob-head' },
+              h('div', null,
+                h('div', { className: 'ob-title' }, t.title),
+                h('div', { className: 'ob-sub' }, t.subtitle),
+              ),
             ),
-          ),
 
-          error ? h('div', { className: 'ob-error' }, `${t.error}: ${error}`) : null,
-          data && data.error ? h('div', { className: 'ob-error' }, data.error) : null,
-          data && !data.configured ? h('div', { className: 'ob-error' }, t.notConfigured) : null,
+            ready
+              ? h(BalanceCard, { balance: data.balance, t })
+              : h('div', { className: 'ob-card' },
+                  h('div', { className: 'ob-empty' }, t.empty)),
 
-          ready
-            ? h(BalanceCard, { balance: data.balance, t })
-            : h('div', { className: 'ob-card' },
-                h('div', { className: 'ob-empty' }, data ? t.unavailable : t.loading)),
+            ready ? h('div', { className: 'ob-card' },
+              h('div', { className: 'ob-card-head' },
+                h('div', { className: 'ob-card-title' }, t.usage),
+                h('div', { className: 'ob-tabs' }, ...RANGES.map(value => h('button', {
+                  key: value,
+                  type: 'button',
+                  className: `ob-tab${value === range ? ' ob-tab-active' : ''}`,
+                  onClick: () => setRange(value),
+                }, value))),
+              ),
+              h('div', { className: 'ob-metrics' },
+                h(Metric, { label: t.cost, value: money(totals.usage_usd) }),
+                h(Metric, { label: t.requests, value: String(totals.request_count) }),
+                // input already contains cached, so the total is input + output only.
+                h(Metric, { label: t.total, value: tokens(totals.input_tokens + totals.output_tokens) }),
+                h(Metric, { label: t.hitRate, value: `${percent(totals.cached_input_tokens, totals.input_tokens).toFixed(1)}%` }),
+              ),
+              h(Chart, { usage, t, range }),
+            ) : null,
 
-          ready ? h('div', { className: 'ob-card' },
-            h('div', { className: 'ob-card-head' },
-              h('div', { className: 'ob-card-title' }, t.usage),
-              h('div', { className: 'ob-tabs' }, ...RANGES.map(value => h('button', {
-                key: value,
-                type: 'button',
-                className: `ob-tab${value === range ? ' ob-tab-active' : ''}`,
-                onClick: () => setRange(value),
-              }, value))),
+            ready ? h('div', { className: 'ob-card' },
+              h('div', { className: 'ob-card-head' },
+                h('div', { className: 'ob-card-title' }, t.byModel),
+              ),
+              hasGroups ? h(ModelTable, { totals, t }) : h('div', { className: 'ob-empty' }, t.noData),
+            ) : null,
+
+            h('div', { className: 'ob-foot' },
+              h(Freshness, { data, t }),
+              h('span', { className: 'ob-dim' }, t.delay),
             ),
-            h('div', { className: 'ob-metrics' },
-              h(Metric, { label: t.cost, value: money(totals.usage_usd) }),
-              h(Metric, { label: t.requests, value: String(totals.request_count) }),
-              // input already contains cached, so the total is input + output only.
-              h(Metric, { label: t.total, value: tokens(totals.input_tokens + totals.output_tokens) }),
-              h(Metric, { label: t.hitRate, value: `${percent(totals.cached_input_tokens, totals.input_tokens).toFixed(1)}%` }),
-            ),
-            h(Chart, { usage, t, range }),
-          ) : null,
-
-          ready ? h('div', { className: 'ob-card' },
-            h('div', { className: 'ob-card-head' },
-              h('div', { className: 'ob-card-title' }, t.byModel),
-            ),
-            hasGroups ? h(ModelTable, { totals, t }) : h('div', { className: 'ob-empty' }, t.noData),
-          ) : null,
-
-          h('div', { className: 'ob-foot' },
-            h(Freshness, { data, t }),
-            h('span', { className: 'ob-dim' }, t.delay),
           ),
         ),
+
+        h(KeyBar, {
+          open,
+          saving,
+          failure,
+          t,
+          onToggle: () => {
+            setOpen(!open)
+            setFailure(null)
+          },
+          onSubmit: submitKey,
+          onClose: () => {
+            setOpen(false)
+            setFailure(null)
+          },
+        }),
       )
     }
 
     // ── styles ──────────────────────────────────────────────────────────────
 
     const CSS = `
-      .ob-page { height: 100%; overflow: auto; padding: 28px 32px 56px; box-sizing: border-box; }
+      .ob-stage { position: relative; height: 100%; overflow: hidden; }
+      .ob-scroll { height: 100%; overflow: auto; padding: 28px 32px 56px; box-sizing: border-box; }
+      /* Right edge of the 1040px content column, not the viewport edge:
+         right = wrap edge = 50% - (1040 / 2 + 0) once the column stops growing. */
+      .ob-keybar {
+        position: absolute; top: 24px; right: max(32px, calc(50% - 520px)); z-index: 3;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .ob-keyform {
+        display: flex; align-items: center; gap: 8px;
+        width: 0; opacity: 0; overflow: hidden;
+        transition: width .28s cubic-bezier(.4, 0, .2, 1), opacity .2s ease;
+      }
+      .ob-keyform-open { width: 332px; opacity: 1; }
+      .ob-input {
+        flex: 1 1 auto; min-width: 0; height: 34px; padding: 0 10px;
+        font: inherit; font-size: 12px; color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; outline: none;
+      }
+      .ob-input:focus { border-color: var(--dsw-alias-border-l2); }
+      .ob-key, .ob-key-ok, .ob-key-x {
+        flex: 0 0 auto; height: 34px; border-radius: 8px; cursor: pointer; font: inherit;
+        background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l1);
+        color: var(--dsw-alias-label-primary);
+        transition: background .12s ease, border-color .12s ease, opacity .12s ease;
+      }
+      /* A slow cyan breath: findable at a glance, quiet enough to ignore. */
+      .ob-key {
+        width: 34px; display: flex; align-items: center; justify-content: center;
+        opacity: .85; --ob-glow: 56, 189, 248;
+        animation: ob-breathe 2.6s ease-in-out infinite;
+      }
+      @keyframes ob-breathe {
+        0%, 100% { border-color: var(--dsw-alias-border-l1); box-shadow: 0 0 0 0 rgba(var(--ob-glow), 0); }
+        50% {
+          border-color: rgba(var(--ob-glow), .7);
+          box-shadow: 0 0 0 3px rgba(var(--ob-glow), .10), 0 0 12px 2px rgba(var(--ob-glow), .28);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) { .ob-key { animation: none; } }
+      .ob-key:hover, .ob-key-ok:hover, .ob-key-x:hover { background: var(--dsw-alias-bg-layer-2); border-color: var(--dsw-alias-border-l2); }
+      .ob-key:hover { opacity: 1; }
+      .ob-key-ok, .ob-key-x { width: 34px; font-size: 14px; line-height: 1; }
+      .ob-key-ok:disabled { opacity: .4; cursor: default; }
+      .ob-keymsg {
+        position: absolute; top: 42px; right: 0; max-width: 380px; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; text-align: right;
+        font-size: 11px; color: var(--dsw-alias-state-error-primary);
+      }
       .ob-wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
       .ob-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
       .ob-title { font-size: 20px; font-weight: 600; color: var(--dsw-alias-label-primary); }
@@ -489,12 +672,6 @@ window.__ModuleLoader__.load({
       .ob-model { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
       .ob-dim { color: var(--dsw-alias-label-secondary); }
       .ob-empty { font-size: 12px; color: var(--dsw-alias-label-secondary); padding: 8px 0; }
-      .ob-error {
-        font-size: 12px; padding: 10px 12px; border-radius: 8px;
-        color: var(--dsw-alias-state-error-primary);
-        border: 1px solid var(--dsw-alias-state-error-primary);
-        background: var(--dsw-alias-bg-layer-1);
-      }
       .ob-foot { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--dsw-alias-label-secondary); }
     `
 
@@ -517,7 +694,7 @@ window.__ModuleLoader__.load({
           name: 'sidebar.panellist',
           id: PANEL_ID,
           order: 30,
-          label: () => (STRINGS[pickLocale()] || STRINGS.en).nav,
+          label: () => stringsFor().nav,
         }, PanelIcon))
 
         ctx.slots.inject('main', () => ctx.slots.register({
