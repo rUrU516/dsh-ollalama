@@ -1,1 +1,1 @@
-{"meta":{"title":"Ollama Cloud 看板","description":"显示 Ollama Cloud 的余额、本周期用量，以及 24 小时 / 7 天 / 30 天三档的 token 与花费明细。"}}
+{"meta": {"title": "ollalama", "description": "Ollama Cloud 的余额与用量：订阅额度圆环、按小时/天 的花费走势、按模型的用量拆分。非官方插件。"}}

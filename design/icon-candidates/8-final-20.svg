@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+  <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-dasharray="36.02 14.24" transform="rotate(-90 12 12)"/>
+  <rect x="8" y="12" width="2" height="3" rx="1" fill="currentColor" opacity=".45"/>
+  <rect x="11" y="10" width="2" height="5" rx="1" fill="currentColor" opacity=".45"/>
+  <rect x="14" y="8" width="2" height="7" rx="1" fill="currentColor"/>
+</svg>

@@ -5,7 +5,7 @@
  * the Host half's cached snapshot routes — the API key never reaches the page.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-ollama-board',
+  id: 'dsh-ollalama',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -171,16 +171,20 @@ window.__ModuleLoader__.load({
 
     function PanelIcon(props) {
       const size = (props && props.size) || 20
-      const active = Boolean(props && props.active)
+      const stroke = props && props.active ? 'var(--dsw-alias-brand-primary)' : 'currentColor'
       return h('svg', {
         width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
         'aria-hidden': true, style: { display: 'block' },
-        stroke: active ? 'var(--dsw-alias-brand-primary)' : 'currentColor',
-        strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
       },
-        h('path', { d: 'M3 17.5 L9 11 L13 14.5 L21 6.5' }),
-        h('circle', { cx: 21, cy: 6.5, r: 2, fill: 'currentColor', stroke: 'none' }),
-        h('path', { d: 'M3 21 H21', opacity: 0.4 }),
+        // Allowance ring, then the usage bars inside it: the same motif as the
+        // bundle icon and the floating window.
+        h('circle', {
+          cx: 12, cy: 12, r: 8, stroke, strokeWidth: 2, strokeLinecap: 'round',
+          strokeDasharray: '36.02 14.24', transform: 'rotate(-90 12 12)',
+        }),
+        h('rect', { x: 8, y: 12, width: 2, height: 3, rx: 1, fill: stroke, opacity: 0.45 }),
+        h('rect', { x: 11, y: 10, width: 2, height: 5, rx: 1, fill: stroke, opacity: 0.45 }),
+        h('rect', { x: 14, y: 8, width: 2, height: 7, rx: 1, fill: stroke }),
       )
     }
 

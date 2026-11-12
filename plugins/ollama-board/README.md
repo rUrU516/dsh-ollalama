@@ -1,4 +1,4 @@
-# dsh-ollama-board
+# dsh-ollalama
 
 DSH 插件：把 Ollama Cloud 的余额和三档用量做成一个看板页。
 

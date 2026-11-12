@@ -6,6 +6,6 @@
 # the board itself (the key button) or written with `echo`.
 - insert:
     - id: ollama-board
-      name: 'dsh-ollama-board'
+      name: 'dsh-ollalama'
       config:
         baseUrl: 'https://ollama.com'

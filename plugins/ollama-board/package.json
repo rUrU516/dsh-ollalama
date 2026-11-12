@@ -1,5 +1,5 @@
 {
-  "name": "dsh-ollama-board",
+  "name": "dsh-ollalama",
   "version": "0.1.0",
   "type": "module",
   "description": "Ollama Cloud balance and usage dashboard for DeepSeek Harness, with a draggable floating ring.",
