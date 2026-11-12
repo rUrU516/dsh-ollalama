@@ -46,7 +46,6 @@ const KEY_FILE = path.join(process.env.DSH_HOME || path.join(homedir(), '.dsh'),
  *     },
  *   },
  *   fetchedAt: number | null,    // last SUCCESSFUL pull; null means nothing usable
- *   stale: boolean,              // fetchedAt older than two beats
  * }
  *
  * The snapshot carries data only. A failed beat is silent: the previous numbers
@@ -184,10 +183,10 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/ollama-board/snapshot',
+    // The snapshot, verbatim: consumers derive age from fetchedAt themselves.
     resource: async () => {
       await ready
-      const stale = snapshot.fetchedAt === null || Date.now() - snapshot.fetchedAt > BEAT_MS * 2
-      return json({ ...snapshot, stale })
+      return json(snapshot)
     },
   }), 'ollama-board: snapshot route')
 

@@ -58,8 +58,8 @@ cordis 动态包（`cordis_define`），`ctx.remote.*` 是构建期生成的，�
 验证：`scripts/harness-clear.mjs`（mock 上游第一拍返回合法、第二拍返回垃圾，
 断言第一拍被缓存、第二拍被清空）。约 65 秒，因为它等第二拍。
 
-payload：`{ balance, usage, fetchedAt, error, configured, stale }`。
-`stale` = 距上次成功超过 2 拍（说明漏了一拍），由 Host 在响应时算。
+payload：`{ balance, usage, fetchedAt }` —— 只有数据，没有错误、没有状态标记。
+空态 = `{ balance: null, usage: {}, fetchedAt: null }`，消费判断 `balance !== null`。
 
 **Client 半（2026-11-11 定稿，10 行）**：进入看板页读一次（t=0 那一拍），之后固定
 每 10 秒无条件读一次本地缓存（1ms，不触上游）；离开看板页组件卸载、定时器清掉。
@@ -72,7 +72,7 @@ payload：`{ balance, usage, fetchedAt, error, configured, stale }`。
 和 Host 完全同构：一个动作 + 一个定时器。只保证「Host 写完后 10 秒内上屏」。
 
 页脚「更新于 Xs 前」由前端每秒用 `fetchedAt` 现算（1s ticker 只在页脚小组件里，
-不重绘图表和表格）；「数据陈旧」用 Host 给的 `stale`，避免用实时年龄比阈值导致每拍闪烁。
+不重绘图表和表格）。
 
 ## 槽位
 

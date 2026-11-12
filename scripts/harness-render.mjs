@@ -133,7 +133,7 @@ const snapshot = {
 
 // ── run ──────────────────────────────────────────────────────────────────────
 
-const NO_DATA = { balance: null, usage: {}, fetchedAt: null, stale: true }
+const NO_DATA = { balance: null, usage: {}, fetchedAt: null }
 
 const cases = [
   ['24h', [{ value: '24h' }, { value: snapshot }], ['缓存命中', '$']],

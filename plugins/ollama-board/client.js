@@ -37,7 +37,6 @@ window.__ModuleLoader__.load({
         empty: '暂时拉不到数据。',
         updated: '更新于',
         ago: '前',
-        stale: '数据陈旧',
         delay: 'ollama.com 记账有分钟级延迟',
         keyTitle: '设置 API key',
         keySave: '校验并保存',
@@ -74,7 +73,6 @@ window.__ModuleLoader__.load({
         empty: 'Nothing to show right now.',
         updated: 'Updated',
         ago: 'ago',
-        stale: 'Stale',
         delay: 'ollama.com accounting lags by a minute or two',
         keyTitle: 'Set API key',
         keySave: 'Check and save',
@@ -338,11 +336,8 @@ window.__ModuleLoader__.load({
 
       const bits = []
       if (data && data.fetchedAt) {
-        // The age ticks live, but staleness is judged by the Host at read time:
-        // comparing the live age against the TTL would flash "stale" for the few
-        // seconds before every scheduled read.
+        // The age ticks live, so the label always describes the data on screen.
         bits.push(`${t.updated} ${ago(Math.max(0, now - data.fetchedAt), t)}`)
-        if (data.stale) bits.push(t.stale)
       }
       return h('span', null, bits.join(' · '))
     }
