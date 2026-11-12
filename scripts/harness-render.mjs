@@ -159,6 +159,17 @@ for (const [name, overrides, expected] of cases) {
   }
 }
 
+// the floating window is registered separately and renders nothing while closed
+try {
+  const floating = registered.get('ollama-board-float')
+  const html = render(createElement(floating))
+  console.log(`${'float'.padEnd(11)} -> ${html.length} chars ${html === '' ? 'OK' : 'UNEXPECTED'}`)
+  if (html !== '') failed = true
+} catch (error) {
+  failed = true
+  console.log('float       -> THREW:', error && error.message)
+}
+
 // the sidebar icon must render too
 try {
   const icon = registered.get('ollama-board')

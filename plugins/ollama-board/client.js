@@ -39,6 +39,7 @@ window.__ModuleLoader__.load({
         ago: '前',
         delay: 'ollama.com 记账有分钟级延迟',
         keyTitle: '设置 API key',
+        floatTitle: '悬浮窗',
         keySave: '校验并保存',
         keyCancel: '收起',
         errors: {
@@ -75,6 +76,7 @@ window.__ModuleLoader__.load({
         ago: 'ago',
         delay: 'ollama.com accounting lags by a minute or two',
         keyTitle: 'Set API key',
+        floatTitle: 'Floating window',
         keySave: 'Check and save',
         keyCancel: 'Collapse',
         errors: {
@@ -342,6 +344,129 @@ window.__ModuleLoader__.load({
       return h('span', null, bits.join(' · '))
     }
 
+    // One boolean shared by the page (button) and the overlay (window). The two
+    // live in different slots, so a module-level store is the shortest path.
+    const floatStore = {
+      open: false,
+      listeners: new Set(),
+      set(patch) {
+        Object.assign(this, patch)
+        for (const listener of this.listeners) listener()
+      },
+      subscribe(listener) {
+        this.listeners.add(listener)
+        return () => { this.listeners.delete(listener) }
+      },
+    }
+
+    function useFloat() {
+      const [, bump] = React.useState(0)
+      React.useEffect(() => floatStore.subscribe(() => bump(n => n + 1)), [])
+      return floatStore
+    }
+
+    function FloatIcon(props) {
+      return h('svg', {
+        width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round',
+        'aria-hidden': true, style: { display: 'block' },
+      },
+        h('circle', { cx: 12, cy: 12, r: 7.5 }),
+        props.active ? h('circle', { cx: 12, cy: 12, r: 3, fill: 'currentColor', stroke: 'none' }) : null,
+      )
+    }
+
+    // The floating window: one ring of the subscription balance, nothing else.
+    function FloatWindow() {
+      const store = useFloat()
+      const t = stringsFor()
+      const [data, setData] = React.useState(null)
+      const [pos, setPos] = React.useState(null)
+      const drag = React.useRef(null)
+
+      React.useEffect(() => {
+        if (!store.open) return
+        let cancelled = false
+        async function load() {
+          try {
+            const next = await readSnapshot()
+            if (!cancelled) setData(next)
+          } catch (error) { /* keep the last copy */ }
+        }
+        load()
+        const timer = setInterval(load, POLL_MS)
+        return () => {
+          cancelled = true
+          clearInterval(timer)
+        }
+      }, [store.open])
+
+      if (!store.open) return null
+
+      const included = data && data.balance ? data.balance.included : null
+      const fraction = included && included.allowance_usd > 0
+        ? Math.max(0, Math.min(1, included.balance_usd / included.allowance_usd))
+        : 0
+      const SIZE = 40
+      const RADIUS = 16
+      const CENTRE = SIZE / 2
+      const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+      const arc = CIRCUMFERENCE * fraction
+
+      const style = pos
+        ? { left: `${pos.x}px`, top: `${pos.y}px`, right: 'auto', bottom: 'auto' }
+        : { right: '28px', bottom: '28px' }
+
+      const clamp = (value, max) => Math.max(0, Math.min(value, max))
+
+      return h('div', {
+        className: `ob-float${included ? '' : ' is-empty'}`,
+        style,
+        onPointerDown: event => {
+          if (typeof event.currentTarget.setPointerCapture === 'function') {
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }
+          const box = event.currentTarget.getBoundingClientRect()
+          drag.current = { dx: event.clientX - box.left, dy: event.clientY - box.top }
+        },
+        onPointerMove: event => {
+          if (!drag.current) return
+          const width = typeof window === 'undefined' ? 0 : window.innerWidth
+          const height = typeof window === 'undefined' ? 0 : window.innerHeight
+          setPos({
+            x: clamp(event.clientX - drag.current.dx, width - 48),
+            y: clamp(event.clientY - drag.current.dy, height - 48),
+          })
+        },
+        onPointerUp: () => { drag.current = null },
+        onPointerCancel: () => { drag.current = null },
+      },
+        h('svg', { width: SIZE, height: SIZE, viewBox: `0 0 ${SIZE} ${SIZE}`, 'aria-hidden': true },
+          h('circle', {
+            cx: CENTRE, cy: CENTRE, r: RADIUS, fill: 'none',
+            stroke: 'var(--dsw-alias-bg-layer-2)', strokeWidth: 4,
+          }),
+          included ? h('circle', {
+            cx: CENTRE, cy: CENTRE, r: RADIUS, fill: 'none',
+            stroke: 'var(--dsw-alias-brand-primary)', strokeWidth: 4, strokeLinecap: 'round',
+            strokeDasharray: `${arc} ${CIRCUMFERENCE - arc}`,
+            transform: `rotate(-90 ${CENTRE} ${CENTRE})`,
+          }) : null,
+        ),
+
+        included ? h('div', { className: 'ob-float-tip' },
+          h('div', { className: 'ob-float-line strong' },
+            `${money(included.balance_usd)} / ${compactMoney(included.allowance_usd)}`),
+          h('div', { className: 'ob-float-line' },
+            `${t.used} ${percent(included.allowance_usd - included.balance_usd, included.allowance_usd).toFixed(1)}%`),
+          h('div', { className: 'ob-float-line' },
+            `${t.resetIn} ${Math.max(0, Math.ceil((new Date(included.period.until).getTime() - Date.now()) / 86_400_000))} ${t.days}`),
+        ) : h('div', { className: 'ob-float-tip' },
+          h('div', { className: 'ob-float-line' }, t.empty),
+        ),
+      )
+    }
+
     function KeyIcon() {
       return h('svg', {
         width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none',
@@ -357,7 +482,7 @@ window.__ModuleLoader__.load({
     // A small control, not a mode: the panel keeps polling and rendering behind
     // it whatever happens here.
     function KeyBar(props) {
-      const { open, saving, failure, t, onToggle, onSubmit, onClose } = props
+      const { open, saving, failure, t, floatOpen, onToggle, onToggleFloat, onSubmit, onClose } = props
       const [value, setValue] = React.useState('')
       const field = React.useRef(null)
 
@@ -406,6 +531,14 @@ window.__ModuleLoader__.load({
         ),
         h('button', {
           type: 'button',
+          className: `ob-key${floatOpen ? ' is-on' : ''}`,
+          onClick: onToggleFloat,
+          title: t.floatTitle,
+          'aria-label': t.floatTitle,
+        }, h(FloatIcon, { active: floatOpen })),
+
+        h('button', {
+          type: 'button',
           className: 'ob-key',
           onClick: onToggle,
           title: t.keyTitle,
@@ -421,6 +554,7 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = React.useState(false)
       const [saving, setSaving] = React.useState(false)
       const [failure, setFailure] = React.useState(null)
+      const float = useFloat()
       const t = stringsFor()
 
       React.useEffect(() => {
@@ -529,6 +663,8 @@ window.__ModuleLoader__.load({
           saving,
           failure,
           t,
+          floatOpen: float.open,
+          onToggleFloat: () => floatStore.set({ open: !float.open }),
           onToggle: () => {
             setOpen(!open)
             setFailure(null)
@@ -590,6 +726,35 @@ window.__ModuleLoader__.load({
       .ob-key:hover { opacity: 1; }
       .ob-key-ok, .ob-key-x { width: 34px; font-size: 14px; line-height: 1; }
       .ob-key-ok:disabled { opacity: .4; cursor: default; }
+      .ob-key.is-on { opacity: 1; border-color: var(--dsw-alias-brand-primary); }
+
+      .ob-float {
+        position: fixed; z-index: 40; width: 40px; height: 40px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l1);
+        box-shadow: 0 6px 18px rgb(0 0 0 / .28);
+        cursor: grab; touch-action: none; user-select: none;
+      }
+      .ob-float:active { cursor: grabbing; }
+      /* No usable data: the ring is drained and everything fades to grey. */
+      .ob-float.is-empty { opacity: .55; }
+      .ob-float-tip {
+        position: absolute; bottom: calc(100% + 8px); right: 0; pointer-events: none;
+        display: flex; flex-direction: column; gap: 3px; align-items: flex-end;
+        padding: 8px 10px; border-radius: 8px; white-space: nowrap;
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l1);
+        opacity: 0; transform: translateY(2px);
+        transition: opacity .12s ease, transform .12s ease;
+      }
+      .ob-float:hover .ob-float-tip { opacity: 1; transform: translateY(0); }
+      .ob-float-line { font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .ob-float-line.strong {
+        font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary);
+        font-variant-numeric: tabular-nums;
+      }
+      .ob-float.is-empty svg circle:first-child { stroke: var(--dsw-alias-state-idle-primary); }
       .ob-keymsg {
         position: absolute; top: 42px; right: 0; max-width: 380px; white-space: nowrap;
         overflow: hidden; text-overflow: ellipsis; text-align: right;
@@ -696,6 +861,12 @@ window.__ModuleLoader__.load({
           name: 'main',
           key: PANEL_ID,
         }, Page))
+
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          id: 'ollama-board-float',
+          order: 60,
+        }, FloatWindow))
       },
     }
   },
