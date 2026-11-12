@@ -1,9 +1,8 @@
 {
-  "name": "@local/dsh-ollama-board",
+  "name": "dsh-ollama-board",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "Ollama Cloud balance and usage dashboard.",
+  "description": "Ollama Cloud balance and usage dashboard for DeepSeek Harness, with a draggable floating ring.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -27,5 +26,23 @@
       "immediately": true,
       "inject": []
     }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "ollama",
+    "dashboard",
+    "usage"
+  ],
+  "author": "ruru516",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rUrU516/dsh-ollalama.git"
+  },
+  "homepage": "https://github.com/rUrU516/dsh-ollalama#readme",
+  "bugs": {
+    "url": "https://github.com/rUrU516/dsh-ollalama/issues"
   }
 }
