@@ -5,7 +5,7 @@
  * the Host half's cached snapshot routes — the API key never reaches the page.
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-ollama-board',
+  id: 'dsh-ollama-board',
   factory(require) {
     const React = require('react')
     const h = React.createElement
